@@ -1,7 +1,11 @@
 from sklearn.feature_extraction.text import TfidfVectorizer,CountVectorizer
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import KFold
+
 
 class TextAnalysis:
-    def __init__(self,classifier,n_words,method = 'count', n_kfolds ,tokenizer):
+    """A class that holds the model that performs the primary text analysis. Predicted probability"""
+    def __init__(self,classifier,n_words,n_kfolds,tokenizer = None,method = 'count',):
         self.classifier = classifier
         self.vocabulary = None
         self.vectorizer = None
@@ -33,7 +37,7 @@ class TextAnalysis:
         return vectorizer
 
 
-    def get_vocabulary(X_train,y_train,ngram,n_words):
+    def get_vocabulary(self,X_train,y_train,ngram,n_words):
 
         vect = self.make_vectorizor(X_train, method=self.method,ngram_range=ngram)
         X_train = vect.transform(X_train)

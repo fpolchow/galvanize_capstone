@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from sklearn.pipeline import Pipeline
 import scipy.sparse as sparse
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from sklearn.naive_bayes import MultinomialNB
 import re
 import textblob
 import nltk
@@ -11,8 +12,8 @@ from sklearn.model_selection import train_test_split
 from textblob import Blobber
 from textblob.sentiments import NaiveBayesAnalyzer
 import datetime
-import argv
-import sys
+from sys import argv
+
 
 
 def make_parent_dict(dataframe):
@@ -21,7 +22,7 @@ def make_parent_dict(dataframe):
     for index, row in dataframe.iterrows():
         #         print row
 
-        d[row['id']] = row['score']
+        d[row['comment_id']] = row['score']
     return d
 
 
@@ -37,7 +38,6 @@ def calculate_parent_score(x,**kwargs):
 
 
 #NLP Processing
-stemmer = PorterStemmer()
 
 def cleanup(comment):
     """ Eliminates punctuation and replaces the words"""
@@ -72,6 +72,7 @@ def cleanup_with_link_profanity(comment):
 
 
 def tokenizer(comment):
+    """Tokenizes each comment"""
     porter = nltk.stem.PorterStemmer()
     stopwords = set(nltk.corpus.stopwords.words('english'))
     doc = nltk.word_tokenize(comment)
@@ -81,17 +82,18 @@ def tokenizer(comment):
 
 
 def time_difference(df):
+    """Calculates the difference in time from original post to """
     df['time_after_post'] = df['comment_time'] - df['post_time']
 
 
 def hour_of_day(row):
     """Determines the time of day a comment was posted"""
-    return datetime.datetime.fromtimestamp(row['created_utc']).hour
+    return datetime.datetime.fromtimestamp(row['comment_time']).hour
 
 
 
 tb = Blobber(analyzer=NaiveBayesAnalyzer())
-nltk.download()
+# nltk.download()
 def sentiment_analysis(comm):
     """Uses an sentiment prediction model pretrained on 100,000 movie reviews, the model takes care of tokenization"""
 
@@ -99,102 +101,32 @@ def sentiment_analysis(comm):
     return  pos
 
 def well_liked(df,num):
+    """Creates the binary classifier for whether or not a post is 'well-liked' by the community. This is up to the discretion
+        of the data scientist. I have tried to ensure that the post is maintained."""
     df['liked'] = np.where(df['score']>num,1,0)
 
 
-def freq_generator(train, test,
-                   method='count',
-                   tokenizer=None,
-                   ngram_range=(1, 1),
-                   max_features=30000, vocabulary=None):
-    if method == 'count':
-        vectorizer = CountVectorizer(tokenizer=tokenizer, \
-                                     stop_words='english', \
-                                     ngram_range=(1, 1),
-                                     max_features=max_features)
-        X_train = vectorizer.fit_transform(train)
-        X_test = vectorizer.transform(test)
-    elif method == 'tf_idf':
-        vectorizer = TfidfVectorizer(tokenizer=tokenizer,
-                                     ngram_range=ngram_range,
-                                     max_features=max_features,
-                                     vocabulary=vocabulary)
-        X_train = vectorizer.fit_transform(train)
-        X_test = vectorizer.transform(test)
 
-    #     vdoc_term_matrix = vectorizer.fit_transform(x_train).toarray()
-
-    return X_train, X_test
-
-
-def get_vocabulary(train,
-                   method='count',
-                   tokenizer=None,
-                   ngram_range=(1, 1),
-                   max_features=30000, vocabulary=None):
-    if method == 'count':
-        vectorizer = CountVectorizer(tokenizer=tokenizer,
-                                     stop_words='english',
-                                     vocabulary=vocabulary,
-                                     ngram_range=ngram_range)
-
-        vectorizer.fit(train)
-        vocab = vectorizer.vocabulary_.values
-
-    elif method == 'tf_idf':
-        vectorizer = TfidfVectorizer(tokenizer=tokenizer,
-                                     ngram_range=ngram_range,
-                                     max_features=max_features,
-                                     vocabulary=vocabulary)
-        vectorizer.fit(train)
-        vocab = vectorizer.vocabulary_.values
-    return vocab, vectorizer
-
-
-def find_important_vocabulary(X_train,y_train,method,ngram_range,n_words,word_list):
-
-    vocab,vect = freq_generator(X_train['cleaned'],method=method,ngram_range=ngram)
-    rf = RandomForestClassifier()
-    X_train = vect.transform(X_train['cleaned'])
-    rf.fit(X_train,y_train)
-    feature_importance = rf.feature_importances_
-    word_list.extend(vocab[np.argsort(feature_importance)][:n_words])
-
-
-
-def get_text_predictions(X_train,y_train, vect, n_splits=10):
-    kf = KFold(n_splits=n_splits, shuffle=True, random_state=5)
-    X_train['text_classifier'] = 0
-    X = X_train['cleaned'].values.astype('str')
-    y = y_train['liked'].values
-
-    score_list = []
-    for train_index, test_index in kf.split(X):
-        X_train_pred, X_test_pred = vect.fit_transform(X[train]),vect.transform(X[test])
-        mnb = MultinomialNB()
-        mnb.fit(X_train_pred, y[train_index])
-        predictions = mnb.predict_proba(X_test_pred)
-        X_train['text_classifier'].iloc[test_index] = predictions
-        score_list.append(mnb.score(X_test, y[test]))
 
 
 
 def main():
     # df = import_file()
     parent_dictionary = make_parent_dict(df)
-    df['parent_score'] = df.apply(create_new_cols,axis = 1,dic = parent_dictionary)
-    df = df.loc[(df['body'] != '[deleted]') & (df['body'] != '[removed]')]
-    df['cleaned'] = df['body'].apply(cleanup)
+    df['parent_score'] = df.apply(calculate_parent_score,axis = 1,dic = parent_dictionary)
+    df = df.loc[(df['text'] != '[deleted]') & (df['text'] != '[removed]')]
+    df['cleaned'] = df['text'].apply(cleanup)
     ## use this if you want to include profanity in the mix
     # df['cleaned'], df['profanity'], df['link'] = comments['body'].apply(cleanup_with_link_profanity)
 
     df['time_of_day'] = df.apply(hour_of_day, axis=1)
     time_difference(df)
 
-    df['top'] = np.where(df['parent_id'].str.contains("c"), 1, 0)
+    df['top'] = np.where(df['parent_id'].str.match("^t1_\S+", 1, 0)
+    ##determine what level of
     well_liked(df,3)
 
-    df['pos_sentiment'] = df['cleaned'].apply(sentiment_analysis,axis=1)
+    df['pos_sentiment'] = df['cleaned'].apply(sentiment_analysis)
 
     X = df[['cleaned','pos_sentiment','top','parent_score','time_of_day','time_after_post']]
     y = df['score']
@@ -216,22 +148,20 @@ def main():
     # vocab, vect = get_vocabulary(X_train, method='tf_idf', ngram_range=(1, 2), vocabulary=most_important_words)
 
     ##generate the predictions
-    get_text_predictions(X_train,y_train,)
-    ta = TextAnalysis(toke)
+    # get_text_predictions(X_train,y_train,)
+    ta = TextAnalysis(classifier=MultinomialNB, n_words=20000, method='tf_idf',n_kfolds =5,tokenizer=tokenizer)
     ta.get_vocabulary()
     ta.train_predictions()
     rem = RedditEnsembleModel()
     rem.fit(X_train,y_train)
 
 
-if __name__ == '__main__':
-    comments = import_data()
-    submissions = import_data()comments = comments[['body','created_utc','edited','id',\
-                                                'link_id','name','parent_id','score','subreddit']]
-    comment_dict = make_parent_dict(merged)
-    merged['parent_score'] = merged.apply(create_new_cols,axis=1,dic = comment_dict)
-
-
-get-vocab
-fit
-get_training_prediction
+#
+# if __name__ == '__main__':
+#     main()
+#     comments = import_data()
+#     submissions = import_data()comments = comments[['body','created_utc','edited','id',\
+#                                                 'link_id','name','parent_id','score','subreddit']]
+#     comment_dict = make_parent_dict(merged)
+#     merged['parent_score'] = merged.apply(create_new_cols,axis=1,dic = comment_dict)
+main(df)
