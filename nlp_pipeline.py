@@ -205,19 +205,23 @@ def main():
 
     ## we are done with the preprocessing, now it's time to make our predictive model that will
     ## feed into the ensemble
-    most_important_words = []
-    ##finding most important unigrams
-    find_important_vocabulary(X_train,method='tf_idf', ngram_range=(1,1), n_words=10000, word_list=most_important_words)
-
-    ##finding most important bigrams
-    find_important_vocabulary(X_train, method='tf_idf', ngram_range=(2, 2), n_words=1000, word_list=most_important_words)
-
-    ##obtaining vectorizer for top unigrams and bigrams
-    vocab, vect = get_vocabulary(X_train, method='tf_idf', ngram_range=(1, 2), vocabulary=most_important_words)
+    # most_important_words = []
+    # ##finding most important unigrams
+    # find_important_vocabulary(X_train,method='tf_idf', ngram_range=(1,1), n_words=10000, word_list=most_important_words)
+    #
+    # ##finding most important bigrams
+    # find_important_vocabulary(X_train, method='tf_idf', ngram_range=(2, 2), n_words=1000, word_list=most_important_words)
+    #
+    # ##obtaining vectorizer for top unigrams and bigrams
+    # vocab, vect = get_vocabulary(X_train, method='tf_idf', ngram_range=(1, 2), vocabulary=most_important_words)
 
     ##generate the predictions
     get_text_predictions(X_train,y_train,)
-
+    ta = TextAnalysis(toke)
+    ta.get_vocabulary()
+    ta.train_predictions()
+    rem = RedditEnsembleModel()
+    rem.fit(X_train,y_train)
 
 
 if __name__ == '__main__':

@@ -1,4 +1,4 @@
-
+from sklearn.feature_extraction.text import TfidfVectorizer,CountVectorizer
 
 class TextAnalysis:
     def __init__(self,classifier,n_words,method = 'count', n_kfolds ,tokenizer):
@@ -6,6 +6,7 @@ class TextAnalysis:
         self.vocabulary = None
         self.vectorizer = None
         self.trained_model = None
+        self.train_predictions = None
         self.n_words = n_words
         self.n_kfolds = n_kfolds
         self.method = method
@@ -54,7 +55,7 @@ class TextAnalysis:
             self.classifier.fit(X_train_pred, y[train_index])
             predicted_values = self.classifier.predict_proba(X_test_pred)
             predictions[test_index] = predicted_values
-        return predictions
+            self.train_predictions = predictions
 
 
 
@@ -70,4 +71,6 @@ class TextAnalysis:
 
     def test_predictions(self,X_test):
         X_test = self.vectorizer.transform(X_test)
-        self.trained_model.predict(X_test)
+        predictions = self.trained_model.predict(X_test)
+        return predictions
+
