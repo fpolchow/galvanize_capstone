@@ -9,7 +9,7 @@ import re
 import textblob
 import nltk
 from sklearn.model_selection import train_test_split
-from textblob import Blobber
+# from textblob import Blobber
 from textblob.sentiments import NaiveBayesAnalyzer
 import datetime
 from sys import argv
@@ -90,7 +90,9 @@ def hour_of_day(row):
     """Determines the time of day a comment was posted"""
     return datetime.datetime.fromtimestamp(row['comment_time']).hour
 
-
+def day_of_week(row):
+    """Returns the day of the week something is posted"""
+    return datetime.datetime.fromtimestamp(row['comment_time']).weekday()
 
 tb = Blobber(analyzer=NaiveBayesAnalyzer())
 # nltk.download()
@@ -99,12 +101,32 @@ def sentiment_analysis(comm):
 
     classification, pos, neg = tb(comm).sentiment
     return  pos
+# Add multiprocessing for this the computationally expensive process of calculating the sentiment for each comment
 
 def well_liked(df,num):
     """Creates the binary classifier for whether or not a post is 'well-liked' by the community. This is up to the discretion
         of the data scientist. I have tried to ensure that the post is maintained."""
     df['liked'] = np.where(df['score']>num,1,0)
+num_partitions = 50 #number of partitions to split dataframe
+num_cores = 16 #number of cores on your machine
 
+def multiply_columns(data):
+    data['length_of_word'] = data['species'].apply(lambda x: len(x))
+    return data
+
+def parallelize_dataframe(df, func):
+    df_split = np.array_split(df, num_partitions)
+    pool = Pool(num_cores)
+    df = pd.concat(pool.map(func, df_split))
+    pool.close()
+    pool.join()
+    return df
+
+def add_sentiment_parallelize(data):
+    df['pos_sentiment'] = df['cleaned'].apply(sentiment_analysis)
+    return df
+
+df = parallelize_dataframe(df,add_sentiment_parallelize)
 
 
 
@@ -122,13 +144,35 @@ def main():
     df['time_of_day'] = df.apply(hour_of_day, axis=1)
     time_difference(df)
 
-    df['top'] = np.where(df['parent_id'].str.match("^t1_\S+", 1, 0)
+    df['top'] = np.where(df['parent_id'].str.match("^t1_\S+", 1, 0))
     ##determine what level of
     well_liked(df,3)
 
+    # num_partitions = 50 #number of partitions to split dataframe
+    # num_cores = 16 #number of cores on your machine
+
+    # def multiply_columns(data):
+    #     data['length_of_word'] = data['species'].apply(lambda x: len(x))
+    #     return data
+
+    # def parallelize_dataframe(df, func):
+    #     df_split = np.array_split(df, num_partitions)
+    #     pool = Pool(num_cores)
+    #     df = pd.concat(pool.map(func, df_split))
+    #     pool.close()
+    #     pool.join()
+    #     return df
+
+    # def add_sentiment_parallelize(data):
+    #     df['pos_sentiment'] = df['cleaned'].apply(sentiment_analysis)
+    #     return df
+
+    # df = parallelize_dataframe(df,add_sentiment_parallelize)
+
+
     df['pos_sentiment'] = df['cleaned'].apply(sentiment_analysis)
 
-    X = df[['cleaned','pos_sentiment','top','parent_score','time_of_day','time_after_post']]
+    X = df[['cleaned','pos_sentiment','top','parent_score','time_of_day','time_after_post','num_char']]
     y = df['score']
 
 
@@ -149,9 +193,10 @@ def main():
 
     ##generate the predictions
     # get_text_predictions(X_train,y_train,)
-    ta = TextAnalysis(classifier=MultinomialNB, n_words=20000, method='tf_idf',n_kfolds =5,tokenizer=tokenizer)
-    ta.get_vocabulary()
-    ta.train_predictions()
+    text_train = X_train['cleaned']
+    ta = TextAnalysis(classifier=MultinomialNB, method='tf_idf',n_kfolds =5,tokenizer=tokenizer)
+    ta.get_vocabulary(text_train,y_train,ngram = (1,2),n_words=20000)
+    ta.train_predictions(text_train,y_train)
     rem = RedditEnsembleModel()
     rem.fit(X_train,y_train)
 
