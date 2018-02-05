@@ -20,15 +20,16 @@ class RedditEnsembleModel:
     #     predictions = self.classifier_model.train_predictions(X_train,y_train,ngram = ngram)
     #     X_train['prediction'] = predictions
 
-    def fit(self, X_train,y_train,ngram = (1,2)):
+    def fit(self, X_train,y_train):
         X_train['prediction'] = self.classifier_model.train_predictions
-        pipeline = Pipeline(steps=[('scale',StandardScaler()),('svm',SVR())])
-        self.model = pipeline.fit(X_train,y_train)
+        self.model = model.fit(X_train,y_train)
 
 
 
 
     def predict(self,X_test):
+        text = self.classifier_model.vectorizer.transform(X_test['cleaned'].values.astype('U'))
         X_test['text_classifier'] = self.classifier_model.predict(X_test)
-        return self.model.predict(X_test)
+        X_test_with_predictions = X_test.drop(label='cleaned',axis=1)
+        return self.model.predict(X_test_with_predictions)
 

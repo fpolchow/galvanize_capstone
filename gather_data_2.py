@@ -10,6 +10,8 @@ subreddit_lists = ['funny','worldnews','todayilearned','showerthoughts']
 
 
 def bz2_reader(filepath_bz2, filepath_json):
+    """Use to interact with bz2 files, which is how the files were originally stored. Now files are
+        """
     with bz2.BZ2File(filepath_bz2) as source_file, \
             open(filepath_json, 'w+') as output_file:
         for line in source_file:
@@ -22,8 +24,6 @@ def bz2_reader(filepath_bz2, filepath_json):
             except:
                 continue
                 # line = str(line)
-
-
 
 
 
