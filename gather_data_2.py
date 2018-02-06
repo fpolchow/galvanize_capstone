@@ -1,29 +1,14 @@
 import bz2
-# import boto3
 import json
 import multiprocessing
 import glob
-import pandas_gbq as pg
+import pandas as pd
 
 ## subreddits that are popular and/or text heavy
 subreddit_lists = ['funny','worldnews','todayilearned','showerthoughts']
 
 
-def bz2_reader(filepath_bz2, filepath_json):
-    """Use to interact with bz2 files, which is how the files were originally stored. Now files are
-        """
-    with bz2.BZ2File(filepath_bz2) as source_file, \
-            open(filepath_json, 'w+') as output_file:
-        for line in source_file:
-            dic = json.loads(line)
-            try:
-                if dic['subreddit'] == 'AskReddit':
-                    print(dic['subreddit'])
-                    json.dump(dic, output_file)
-                    output_file.write('\n')
-            except:
-                continue
-                # line = str(line)
+
 
 
 
@@ -45,6 +30,8 @@ def join_files(file_name,outfile):
 
 
 def import_data(month,subreddit,project_id,output_table):
+    """Sends a query to Google Big Query."""
+
     query = """WITH comments AS (
                 SELECT body,CHAR_LENGTH(body) AS num_char, SUBSTR(link_id,4) AS link_id, id, score, created_utc,
                 parent_id
@@ -62,7 +49,8 @@ def import_data(month,subreddit,project_id,output_table):
                 WHERE subreddit = "{1}"
                 AND num_comments > 0;
                 """.format(month,subreddit)
-    data = pg.read_gbq(query, projectid,dialect='standard',
+
+    data = pd.read_gbq(query, projectid,dialect='standard',
         configuration={
             'query': {
                 'allowLargeResults': True,
@@ -77,11 +65,9 @@ def import_data(month,subreddit,project_id,output_table):
     return data, output_table
 
 
-month_list = ['01','02','03','04','05','06','07','08','09','10','11','12']
-for month in month_list:
 
 
-import_data()
+
 
 
 
@@ -95,23 +81,37 @@ def join_files(data,file_name):
 
 
 
+def bz2_reader(filepath_bz2, filepath_json):
+    """Use to interact with bz2 files, which is how the files were originally stored. Now files are
+        """
+    with bz2.BZ2File(filepath_bz2) as source_file, \
+            open(filepath_json, 'w+') as output_file:
+        for line in source_file:
+            dic = json.loads(line)
+            try:
+                if dic['subreddit'] == 'AskReddit':
+                    print(dic['subreddit'])
+                    json.dump(dic, output_file)
+                    output_file.write('\n')
+            except:
+                continue
+                # line = str(line)
 
 
 
 
 
-
-if __name__ == '__main__':
-    files = [('./data/RC_2016-02.bz2','./data/16-02_c.json'),('./data/RC_2016-03.bz2','./data/16-03_c.json'),\
-            ('./data/RC_2016-04.bz2', './data/16-04_c.json')]
-
-    p = multiprocessing.Pool(processes=3)
-
-    bz2_reader('./data/RS_2017-04.bz2','./data/09_04_s.json')
-    for i,o in files:
-        # launch a process for each file
-        # The result will be approximately one process per CPU core available.
-        p.apply(bz2_reader, args = (i,o))
-
-    p.close()
-    p.join()
+# if __name__ == '__main__':
+#     files = [('./data/RC_2016-02.bz2','./data/16-02_c.json'),('./data/RC_2016-03.bz2','./data/16-03_c.json'),\
+#             ('./data/RC_2016-04.bz2', './data/16-04_c.json')]
+#
+#     p = multiprocessing.Pool(processes=3)
+#
+#     bz2_reader('./data/RS_2017-04.bz2','./data/09_04_s.json')
+#     for i,o in files:
+#         # launch a process for each file
+#         # The result will be approximately one process per CPU core available.
+#         p.apply(bz2_reader, args = (i,o))
+#
+#     p.close()
+#     p.join()

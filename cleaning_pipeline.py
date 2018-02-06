@@ -141,7 +141,7 @@ def rmse(y_actual,y_predicted):
     return (mean_squared_error(y_actual,y_predicted))**0.5
 
 
-def main():
+def clean(df):
     df = time_difference(df)
     parent_dictionary = make_parent_dict(df)
     df = add_parent_score_and_time(df)
@@ -170,27 +170,28 @@ def main():
 
     X = df[['cleaned','pos_sentiment','top','parent_score','time_of_day','time_after_post','num_char','profanity']]
     y = df[['liked','score']]
+    return X,y
 
+X_train, X_test, y_train, y_test = test_train_split(X,y)
 
-    X_train, X_test, y_train, y_test = test_train_split(X,y)
+liked_train = y_train['liked']
+liked_test = y_test['liked']
+score_train = y_train['score']
+score_test = y_test['score']
+text_train = X_train['cleaned']
+text_test = X_test['cleaned']
 
-    liked_train = y_train['liked']
-    liked_test = y_test['liked']
-    score_train = y_train['score']
-    score_test = y_test['score']
-    text_train = X_train['cleaned']
-    text_test = X_test['cleaned']
+## we are done with the preprocessing, now it's time to make our predictive model that will
+## feed into the ensemble
 
-    ## we are done with the preprocessing, now it's time to make our predictive model that will
-    ## feed into the ensemble
+##generate the predictions
 
-    ##generate the predictions
-    ta = TextAnalysis(classifier=MultinomialNB(), method='tf_idf', tokenizer=tokenizer)
-    ta.get_vectorizer(text_train,max_features=10000)
-    ta.fit(text_train,liked_train)
-    ta.train_predictions(text_train,y_train)
-    rem = RedditEnsembleModel()
-    rem.fit(X_train,y_train)
+ta = TextAnalysis(classifier=MultinomialNB(), method='tf_idf', tokenizer=tokenizer)
+ta.get_vectorizer(text_train,max_features=10000)
+ta.fit(text_train,liked_train)
+ta.train_predictions(text_train,y_train)
+rem = RedditEnsembleModel()
+rem.fit(X_train,y_train)
 
 
 #
@@ -201,4 +202,4 @@ def main():
 #                                                 'link_id','name','parent_id','score','subreddit']]
 #     comment_dict = make_parent_dict(merged)
 #     merged['parent_score'] = merged.apply(create_new_cols,axis=1,dic = comment_dict)
-main(df)
+# main(df)

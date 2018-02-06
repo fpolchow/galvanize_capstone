@@ -17,9 +17,10 @@ class StemmedCountVectorizer(CountVectorizer):
 
 class TextAnalysis:
     """A class that holds the model that performs the primary text analysis. Predicted probability.This
-    model has the ability to fit a classifier."""
-    def __init__(self,classifier,tokenizer = None,method = 'count',):
+    model has the ability to fit a classifier or a regressor to make it more flexible in the exploratory phase"""
+    def __init__(self,classifier=None,regressor=None,tokenizer = None,method = 'count',):
         self.classifier = classifier
+        self.regressor = regressor
         self.vocabulary = None
         self.vectorizer = None
         self.trained_model = None
@@ -78,8 +79,12 @@ class TextAnalysis:
             vect = self.make_vectorizer(X[train_index].values.astype('U'), ngram_range=ngram,max_features=max_features)
             X_train_pred = vect.transform(X[train_index].values.astype('U'))
             X_test_pred = vect.transform(X[test_index].values.astype('U'))
-            self.classifier.fit(X_train_pred, y.iloc[train_index])
-            predicted_values = self.classifier.predict_proba(X_test_pred)[:,]
+            if self.classifier:
+                self.classifier.fit(X_train_pred, y.iloc[train_index])
+                predicted_values = self.classifier.predict_proba(X_test_pred)[:,0]
+            else:
+                self.regressor.fit(X_train_pred,y.iloc[train_index])
+                predicted_values = self.regressor.predict(X_test_pred)
             predictions[[test_index]] = predicted_values
             i += 1
         self.train_predictions = predictions
@@ -94,10 +99,15 @@ class TextAnalysis:
     def fit(self,X_train,y_train):
 
         X_train = self.vectorizer.fit_transform(X_train.values.astype('U'))
-        self.trained_model = self.classifier.fit(X_train,y_train)
+        if self.classifier:
+            self.trained_model = self.classifier.fit(X_train,y_train)
+        else:
+            self.trained_model = self.regressor.fit(X_train,y_train)
 
     def test_predictions(self,X_test):
-        X_test = self.vectorizer.transform(X_test)
-        predictions = self.trained_model.predict(X_test)[:,0]
+        if self.classifier:
+            predictions = self.trained_model.predict_proba(X_test)[:,0]
+        else:
+            predictions = self.trained_model.predict(X_test)
         return predictions
 
