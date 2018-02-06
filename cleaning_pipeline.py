@@ -12,6 +12,7 @@ from sklearn.model_selection import train_test_split
 from textblob import Blobber
 from textblob.sentiments import NaiveBayesAnalyzer
 import datetime
+from multiprocessing import Pool
 
 
 
@@ -60,7 +61,7 @@ def cleanup_with_link_profanity(comment):
     cleanup_re = re.compile('[^a-z]+')
     comment = comment.lower()
     regex_link = re.compile("(http\:\/\/|https\:\/\/)?([a-z0-9][a-z0-9\-]*\.)+[a-z0-9][a-z0-9\-]*")
-    comment = regex_link.sub('linkpost', comment)
+    comment = regex_link.sub('linkinpost', comment)
     comment = cleanup_re.sub(' ', comment).strip()
     word_list = nltk.word_tokenize(comment)
     profanity = 0
@@ -74,8 +75,7 @@ def cleanup_with_link_profanity(comment):
     cleaned_comment = " ".join(word_list)
     return cleaned_comment,profanity,link
 
-porter = nltk.stem.PorterStemmer()
-stopwords = set(nltk.corpus.stopwords.words('english'))
+
 
 def tokenizer(comment):
     """Tokenizes each comment"""
@@ -100,7 +100,7 @@ def day_of_week(row):
 
 
 # nltk.download()
-
+tb = Blobber(analyzer=NaiveBayesAnalyzer())
 def sentiment_analysis(comm):
     """Uses an sentiment prediction model pretrained on 100,000 movie reviews, the model takes care of tokenization"""
 
@@ -130,11 +130,11 @@ def add_sentiment_parallelize(df):
     return df
 
 def add_link_profanity_parallelize(df):
-    df['cleaned'],df['profanity'],df['link'] = zip(*df['body'].apply(cleanup_with_link_profanity))
+    df['cleaned'],df['profanity'],df['link'] = zip(*df['text'].apply(cleanup_with_link_profanity))
     return df
 
-def add_parent_score_and_time(df):
-    df['parent_score'], df['time_after_parent'] = zip(*df.apply(calculate_parent_score, axis=1, dic=parent_dictionary))
+def add_parent_score_and_time(df,parent_dictionary):
+    df['parent_score'], df['time_after_parent'] = zip(*df.apply(calculate_parent_score,args =(parent_dictionary,), axis=1))
     return df
 
 def rmse(y_actual,y_predicted):
@@ -143,55 +143,61 @@ def rmse(y_actual,y_predicted):
 
 def clean(df):
     df = time_difference(df)
+    print('calculated difference in time of post to comment')
     parent_dictionary = make_parent_dict(df)
-    df = add_parent_score_and_time(df)
+    df = add_parent_score_and_time(df,parent_dictionary)
+    print('parent score and time since parent created!')
     df = df.loc[(df['text'] != '[deleted]') & (df['text'] != '[removed]')]
     # df['cleaned'] = df['text'].apply(cleanup)
     ## use this if you want to include profanity in the mix
 
     # df['cleaned'], df['profanity'], df['link'] = comments['body'].apply(cleanup_with_link_profanity)
     df['time_of_day'] = df.apply(hour_of_day, axis=1)
+    df['day_of_week'] = df.apply(day_of_week, axis=1)
+    print('added time of day and week!')
 
-
-    df['top'] = np.where(df['parent_id'].str.match("^t1_\S+", 1, 0))
+    df['top'] = np.where((df['parent_id'].str.match("^t1_\S+")), 1, 0)
     ##determine what level of
     well_liked(df,3)
 
-    num_partitions = 50 #number of partitions to split dataframe
-    num_cores = 20 #number of cores on your machine
+
+    porter = nltk.stem.PorterStemmer()
+    stopwords = set(nltk.corpus.stopwords.words('english'))
 
 
-
+    num_partitions = 50  # number of partitions to split dataframe
+    num_cores = 26  # number of cores on your machine
     df = parallelize_dataframe(df, add_link_profanity_parallelize)
 
-    tb = Blobber(analyzer=NaiveBayesAnalyzer())
+
     df = parallelize_dataframe(df,add_sentiment_parallelize)
 
 
-    X = df[['cleaned','pos_sentiment','top','parent_score','time_of_day','time_after_post','num_char','profanity']]
+    X = df[['cleaned','pos_sentiment','top','parent_score','time_of_day','day_of_week',\
+            'post_score','time_after_post','time_after_parent','num_char','profanity','link']]
     y = df[['liked','score']]
     return X,y
 
-X_train, X_test, y_train, y_test = test_train_split(X,y)
-
-liked_train = y_train['liked']
-liked_test = y_test['liked']
-score_train = y_train['score']
-score_test = y_test['score']
-text_train = X_train['cleaned']
-text_test = X_test['cleaned']
-
-## we are done with the preprocessing, now it's time to make our predictive model that will
-## feed into the ensemble
-
-##generate the predictions
-
-ta = TextAnalysis(classifier=MultinomialNB(), method='tf_idf', tokenizer=tokenizer)
-ta.get_vectorizer(text_train,max_features=10000)
-ta.fit(text_train,liked_train)
-ta.train_predictions(text_train,y_train)
-rem = RedditEnsembleModel()
-rem.fit(X_train,y_train)
+# X_train, X_test, y_train, y_test = train_test_split(X,y)
+#
+# liked_train = y_train['liked']
+# liked_test = y_test['liked']
+# score_train = y_train['score']
+# score_test = y_test['score']
+# text_train = X_train['cleaned']
+# text_test = X_test['cleaned']
+#
+# ## we are done with the preprocessing, now it's time to make our predictive model that will
+# ## feed into the ensemble
+#
+# ##generate the predictions
+#
+# ta = TextAnalysis(classifier=MultinomialNB(), method='tf_idf', tokenizer=tokenizer)
+# ta.get_vectorizer(text_train,max_features=10000)
+# ta.fit(text_train,liked_train)
+# ta.train_predictions(text_train,y_train)
+# rem = RedditEnsembleModel()
+# rem.fit(X_train,y_train)
 
 
 #
