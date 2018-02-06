@@ -44,7 +44,24 @@ def join_files(file_name,outfile):
 
 
 
-def import_data(query,project_id,output_table):
+def import_data(month,subreddit,project_id,output_table):
+    query = """WITH comments AS (
+                SELECT body,CHAR_LENGTH(body) AS num_char, SUBSTR(link_id,4) AS link_id, id, score, created_utc,
+                parent_id
+                FROM `fh-bigquery.reddit_comments.2017_{0}`
+                WHERE subreddit = "{1}")
+
+
+
+                SELECT post.created_utc AS post_time, post.score AS post_score, post.id AS link_id,
+                comments.num_char AS num_char, comments.id as comment_id, comments.score as score,
+                comments.created_utc as comment_time, comments.body as text, comments.parent_id as parent_id
+                FROM `fh-bigquery.reddit_posts.2017_{0}` AS post
+                JOIN comments
+                ON comments.link_id = post.id
+                WHERE subreddit = "{1}"
+                AND num_comments > 0;
+                """.format(month,subreddit)
     data = pg.read_gbq(query, projectid,dialect='standard',
         configuration={
             'query': {
@@ -62,23 +79,7 @@ def import_data(query,project_id,output_table):
 
 month_list = ['01','02','03','04','05','06','07','08','09','10','11','12']
 for month in month_list:
-    query = """WITH comments AS (
-            SELECT body,CHAR_LENGTH(body) AS num_char, SUBSTR(link_id,4) AS link_id, id, score, created_utc,
-            parent_id
-            FROM `fh-bigquery.reddit_comments.2017_{}`
-            WHERE subreddit = "AskReddit")
 
-
-
-            SELECT post.created_utc AS post_time, post.score AS post_score, post.id AS link_id,
-            comments.num_char AS num_char, comments.id as comment_id, comments.score as score,
-            comments.created_utc as comment_time, comments.body as text, comments.parent_id as parent_id
-            FROM `fh-bigquery.reddit_posts.2017_01` AS post
-            JOIN comments
-            ON comments.link_id = post.id
-            WHERE subreddit = "AskReddit"
-            AND num_comments > 0;
-            """.format(month)
 
 import_data()
 

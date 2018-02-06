@@ -1,6 +1,8 @@
 from sklearn.feature_extraction.text import TfidfVectorizer,CountVectorizer,HashingVectorizer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import KFold
+import numpy as np
+from gensim import corpora
 # import Stemmer
 # english_stemmer = Stemmer.Stemmer('en')
 
@@ -29,19 +31,21 @@ class TextAnalysis:
 
 
 
-    def make_vectorizer(self,X,ngram_range,vocabulary=None):
+    def make_vectorizer(self,X,ngram_range,max_features=20000,vocabulary=None):
         if self.method == 'count':
             vectorizer = CountVectorizer(tokenizer=self.tokenizer,
                                          stop_words='english',
                                          ngram_range=ngram_range,
-                                         vocabulary=vocabulary)
+                                         vocabulary=vocabulary,
+                                         max_features=max_features)
             vectorizer.fit(X)
 
         elif self.method == 'tf_idf':
             vectorizer = TfidfVectorizer(tokenizer = self.tokenizer,
                                          ngram_range= ngram_range,
                                          stop_words= 'english',
-                                         vocabulary=vocabulary)
+                                         vocabulary=vocabulary,
+                                         max_features=max_features)
             vectorizer.fit(X)
         elif self.method == 'hash':
             vectorizer = HashingVectorizer(tokenizer = self.tokenizer,
@@ -68,14 +72,16 @@ class TextAnalysis:
     def make_training_predictions(self,X,y,n_kfolds,ngram = (1,1),max_features=20000):
         kf = KFold(n_splits=n_kfolds, shuffle=True, random_state=5)
         predictions = np.zeros(len(X))
-        for num, train_index, test_index in enumerate(kf.split(X)):
-            print('this is split # {} out of {}'.format(num+1,n_kfolds))
+        i=0
+        for train_index, test_index in kf.split(X):
+            print('this is split # {} out of {}'.format(i,n_kfolds))
             vect = self.make_vectorizer(X[train_index].values.astype('U'), ngram_range=ngram,max_features=max_features)
             X_train_pred = vect.transform(X[train_index].values.astype('U'))
             X_test_pred = vect.transform(X[test_index].values.astype('U'))
             self.classifier.fit(X_train_pred, y.iloc[train_index])
             predicted_values = self.classifier.predict_proba(X_test_pred)[:,]
             predictions[[test_index]] = predicted_values
+            i += 1
         self.train_predictions = predictions
 
 

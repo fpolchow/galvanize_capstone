@@ -9,10 +9,10 @@ import re
 import textblob
 import nltk
 from sklearn.model_selection import train_test_split
-# from textblob import Blobber
+from textblob import Blobber
 from textblob.sentiments import NaiveBayesAnalyzer
 import datetime
-from sys import argv
+
 
 
 
@@ -130,18 +130,21 @@ def add_sentiment_parallelize(df):
     return df
 
 def add_link_profanity_parallelize(df):
-    df['walrus'],df['django'],df['dingo'] = zip(*df['body'].apply(cleanup_with_link_profanity))
+    df['cleaned'],df['profanity'],df['link'] = zip(*df['body'].apply(cleanup_with_link_profanity))
     return df
 
-def add_parent_score_and_time
+def add_parent_score_and_time(df):
     df['parent_score'], df['time_after_parent'] = zip(*df.apply(calculate_parent_score, axis=1, dic=parent_dictionary))
+    return df
+
+def rmse(y_actual,y_predicted):
+    return (mean_squared_error(y_actual,y_predicted))**0.5
 
 
 def main():
     df = time_difference(df)
     parent_dictionary = make_parent_dict(df)
-    data['parent_score'], data['time_after_parent'] = \
-        zip(*data.apply(calculate_parent_score, axis=1, args=(parent_dictionary,)))
+    df = add_parent_score_and_time(df)
     df = df.loc[(df['text'] != '[deleted]') & (df['text'] != '[removed]')]
     # df['cleaned'] = df['text'].apply(cleanup)
     ## use this if you want to include profanity in the mix
@@ -165,22 +168,26 @@ def main():
     df = parallelize_dataframe(df,add_sentiment_parallelize)
 
 
-    df['pos_sentiment'] = df['cleaned'].apply(sentiment_analysis)
-
-    X = df[['cleaned','pos_sentiment','top','parent_score','time_of_day','time_after_post','num_char']]
-    y = df['score']
+    X = df[['cleaned','pos_sentiment','top','parent_score','time_of_day','time_after_post','num_char','profanity']]
+    y = df[['liked','score']]
 
 
     X_train, X_test, y_train, y_test = test_train_split(X,y)
 
+    liked_train = y_train['liked']
+    liked_test = y_test['liked']
+    score_train = y_train['score']
+    score_test = y_test['score']
+    text_train = X_train['cleaned']
+    text_test = X_test['cleaned']
 
     ## we are done with the preprocessing, now it's time to make our predictive model that will
     ## feed into the ensemble
 
     ##generate the predictions
-    text_train = X_train['cleaned']
-    ta = TextAnalysis(classifier=MultinomialNB, method='tf_idf',n_kfolds =5,tokenizer=tokenizer)
-    ta.get_vocabulary(text_train,y_train,ngram = (1,2),n_words=20000)
+    ta = TextAnalysis(classifier=MultinomialNB(), method='tf_idf', tokenizer=tokenizer)
+    ta.get_vectorizer(text_train,max_features=10000)
+    ta.fit(text_train,liked_train)
     ta.train_predictions(text_train,y_train)
     rem = RedditEnsembleModel()
     rem.fit(X_train,y_train)
